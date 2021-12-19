@@ -1,71 +1,192 @@
 import React, { Component } from "react";
-import SimpleStorageContract from "./contracts/SimpleStorage.json";
-import getWeb3 from "./getWeb3";
-
+import Web3 from "web3";
+import Election from "./contracts/Election.json";
+import connectWallet from "./connectWallet";
 import "./App.css";
+import { AbiItem } from "web3-utils";
+import { Election as IElection } from "./contracts/Election";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
-class App extends Component {
-  state = { storageValue: 0, web3: null, accounts: null, contract: null };
+interface Candidate {
+  name: string;
+  voteCount: number;
+  id: number;
+}
 
-  componentDidMount = async () => {
-    try {
-      // Get network provider and web3 instance.
-      const web3 = await getWeb3();
+interface Props {}
+interface State {
+  web3?: Web3;
+  election?: IElection;
+  candidates?: Candidate[];
+  address?: string;
+}
 
-      // Use web3 to get the user's accounts.
-      const accounts = await web3.eth.getAccounts();
+class App extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    this.state = {
+      web3: undefined,
+      election: undefined,
+      candidates: undefined,
+      address: undefined,
+    };
+  }
 
-      // Get the contract instance.
-      const networkId = await web3.eth.net.getId();
-      const deployedNetwork = SimpleStorageContract.networks[networkId];
-      const instance = new web3.eth.Contract(
-        SimpleStorageContract.abi,
-        deployedNetwork && deployedNetwork.address
-      );
-
-      // Set web3, accounts, and contract to the state, and then proceed with an
-      // example of interacting with the contract's methods.
-      this.setState({ web3, accounts, contract: instance }, this.runExample);
-    } catch (error) {
-      // Catch any errors for any of the above operations.
-      alert(
-        `Failed to load web3, accounts, or contract. Check console for details.`
-      );
-      console.error(error);
+  listenForEvents: () => void = async () => {
+    const election = this.state.election;
+    if (election) {
+      election.events.NewVote({}, (error, event) => {
+        if (error) {
+          toast(JSON.stringify(error), { type: "error" });
+          return;
+        }
+        const eventData = event.returnValues;
+        this.setState((state) => {
+          const candidates = state.candidates;
+          if (candidates) {
+            return {
+              candidates: candidates.map((candidate) => {
+                if (candidate.id === +eventData.id) {
+                  this.toastVote(eventData.voter, candidate.name);
+                  return {
+                    ...candidate,
+                    voteCount: candidate.voteCount + 1,
+                  };
+                }
+                return candidate;
+              }),
+            };
+          }
+          return state;
+        });
+      });
     }
   };
 
-  runExample = async () => {
-    const { accounts, contract } = this.state;
+  toastVote: (voter: string, to: string) => void = (voter, to) => {
+    const selfVoted = voter === this.state.address;
+    toast(`${selfVoted ? "You" : voter} just voted to ${to}`, {
+      type: selfVoted ? "success" : "default",
+      toastId: `${voter}to${to}`,
+    });
+  };
 
-    // Stores a given value, 5 by default.
-    await contract.methods.set(5).send({ from: accounts[0] });
+  connectContract = async (networkId: string | number) => {
+    const { web3 } = this.state;
+    if (web3) {
+      const deployedNetwork =
+        Election.networks[
+          `${networkId}` as unknown as keyof typeof Election.networks
+        ];
 
-    // Get the value from the contract to prove it worked.
-    const response = await contract.methods.get().call();
+      if (!deployedNetwork) {
+        this.setState({
+          election: undefined,
+          candidates: undefined,
+          address: undefined,
+        });
+        const isProd = process.env.NODE_ENV === "production";
+        toast(
+          `Connect to ropsten testnet${!isProd ? " or local network" : ""}.`,
+          { type: "error" }
+        );
+        return;
+      }
 
-    // Update state with the result.
-    this.setState({ storageValue: response });
+      const accounts = await web3.eth.getAccounts();
+
+      const election = new web3.eth.Contract(
+        Election.abi as AbiItem[],
+        deployedNetwork && deployedNetwork.address
+      ) as unknown as IElection;
+
+      toast("Wallet connected.", { type: "success" });
+      this.setState({ election, address: accounts[0] }, () => {
+        this.listenForEvents();
+        this.fetchCandidates();
+      });
+    }
+  };
+
+  connect: () => void = async () => {
+    const web3 = await connectWallet(this.connectContract);
+    const networkId = await web3.eth.net.getId();
+    this.setState({ web3 }, () => this.connectContract(networkId));
+  };
+
+  fetchCandidates: () => void = async () => {
+    const election = this.state.election;
+    if (election) {
+      const count = await election.methods.candidatesCount().call();
+      const candidates: Candidate[] = [];
+      for (let i = 0; i < +count; i++) {
+        const candidate = await election.methods.candidates(i).call();
+        candidates.push({
+          name: candidate.name,
+          voteCount: +candidate.voteCount,
+          id: i,
+        });
+      }
+      this.setState({ candidates });
+    }
+  };
+
+  vote: (id: number) => Promise<void> = async (id: number) => {
+    const { election, address } = this.state;
+    try {
+      if (!address) {
+        toast("No address", { type: "error" });
+        return;
+      }
+      const hasVoted = await election?.methods.voters(address).call();
+      if (hasVoted) {
+        toast("Already voted!", { type: "error" });
+        return;
+      }
+      await election?.methods.vote(id).send({ from: address });
+      toast("Vote sent, wait for block confirmations.", { type: "error" });
+    } catch (error: any) {
+      toast(error.message, { type: "error" });
+    }
   };
 
   render() {
-    if (!this.state.web3) {
-      return <div>Loading Web3, accounts, and contract...</div>;
-    }
+    const { candidates, address } = this.state;
+
     return (
-      <div className="App">
-        <h1>Good to Go!</h1>
-        <p>Your Truffle Box is installed and ready.</p>
-        <h2>Smart Contract Example</h2>
-        <p>
-          If your contracts compiled and migrated successfully, below will show
-          a stored value of 5 (by default).
-        </p>
-        <p>
-          Try changing the value stored on <strong>line 42</strong> of App.js.
-        </p>
-        <div>The stored value is: {this.state.storageValue}</div>
-      </div>
+      <>
+        <ToastContainer />
+        <div className="app">
+          {address ? (
+            <div className="container">
+              <div>
+                <p className="detail">
+                  {address}
+                  <br />
+                  <br />
+                  <span>Choose one to vote:</span>
+                </p>
+              </div>
+              <div className="candidates">
+                {candidates
+                  ? candidates.map((candidate) => (
+                      <div
+                        className="candidate"
+                        onClick={() => this.vote(candidate.id)}
+                        key={candidate.id}
+                      >{`${candidate.name}: ${candidate.voteCount}`}</div>
+                    ))
+                  : "Loading..."}
+              </div>
+            </div>
+          ) : (
+            <button className="connect-button" onClick={this.connect}>
+              Connect Wallet
+            </button>
+          )}
+        </div>
+      </>
     );
   }
 }
