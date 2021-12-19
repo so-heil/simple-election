@@ -1,0 +1,25 @@
+{
+  "files": {
+    "main.css": "/simple-election/static/css/main.feabc5ba.chunk.css",
+    "main.js": "/simple-election/static/js/main.92f6af2e.chunk.js",
+    "main.js.map": "/simple-election/static/js/main.92f6af2e.chunk.js.map",
+    "runtime-main.js": "/simple-election/static/js/runtime-main.07e68ff4.js",
+    "runtime-main.js.map": "/simple-election/static/js/runtime-main.07e68ff4.js.map",
+    "static/css/2.58a45539.chunk.css": "/simple-election/static/css/2.58a45539.chunk.css",
+    "static/js/2.0e95d113.chunk.js": "/simple-election/static/js/2.0e95d113.chunk.js",
+    "static/js/2.0e95d113.chunk.js.map": "/simple-election/static/js/2.0e95d113.chunk.js.map",
+    "static/js/3.b2d56504.chunk.js": "/simple-election/static/js/3.b2d56504.chunk.js",
+    "static/js/3.b2d56504.chunk.js.map": "/simple-election/static/js/3.b2d56504.chunk.js.map",
+    "index.html": "/simple-election/index.html",
+    "static/css/2.58a45539.chunk.css.map": "/simple-election/static/css/2.58a45539.chunk.css.map",
+    "static/css/main.feabc5ba.chunk.css.map": "/simple-election/static/css/main.feabc5ba.chunk.css.map",
+    "static/js/2.0e95d113.chunk.js.LICENSE.txt": "/simple-election/static/js/2.0e95d113.chunk.js.LICENSE.txt"
+  },
+  "entrypoints": [
+    "static/js/runtime-main.07e68ff4.js",
+    "static/css/2.58a45539.chunk.css",
+    "static/js/2.0e95d113.chunk.js",
+    "static/css/main.feabc5ba.chunk.css",
+    "static/js/main.92f6af2e.chunk.js"
+  ]
+}
